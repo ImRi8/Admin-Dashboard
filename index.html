@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Management App</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+  <style>
+      body {
+          font-family: Arial, sans-serif;
+          margin: 20px;
+      }
+
+    .selected-row {
+      background-color: #f2f2f3;
+      box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .row-checkbox:checked + .selected-row {
+      background-color: #f2f2f2;
+      box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .edit-mode input {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container mt-5">
+  <div class="row mb-3">
+    <div class="col-md-6">
+      <input type="text" class="form-control" id="searchInput" placeholder="Search...">
+    </div>
+    <div class="col-md-6 text-right">
+      <button class="btn btn-danger" id="deleteSelectedBtn">
+        <i class="fas fa-trash"></i> Delete Selected
+      </button>
+    </div>
+  </div>
+
+  <table class="table table-bordered">
+    <!-- Table header -->
+    <thead>
+      <tr>
+        <th scope="col">
+          <input type="checkbox" id="selectAllCheckbox">
+        </th>
+        <th scope="col">Name</th>
+        <th scope="col">Email</th>
+        <th scope="col">Role</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <!-- Table body -->
+    <tbody id="tableBody">
+      <!-- Table rows will be dynamically added here -->
+    </tbody>
+  </table>
+
+  <div class="text-center">
+    <div class="btn-group mr-2" role="group" aria-label="Pagination">
+      <button type="button" class="btn btn-secondary first-page">First</button>
+      <button type="button" class="btn btn-secondary previous-page">Previous</button>
+      <button type="button" class="btn btn-secondary next-page">Next</button>
+      <button type="button" class="btn btn-secondary last-page">Last</button>
+    </div>
+    <span id="updatePagination"></span>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<script>
+  const apiEndpoint = 'https://geektrust.s3-ap-southeast-1.amazonaws.com/adminui-problem/members.json';
+
+  const usersPerPage = 10;
+  let currentPage = 1;
+  let totalUsers = 0;
+  let selectedRows = [];
+  let data = [];
+
+  async function fetchData() {
+    const response = await fetch(apiEndpoint);
+    data = await response.json();
+    renderTable();
+  }
+
+  function renderTable() {
+    const tableBody = document.getElementById('tableBody');
+    tableBody.innerHTML = '';
+
+    const startIndex = (currentPage - 1) * usersPerPage;
+    const endIndex = startIndex + usersPerPage;
+    const displayData = data.slice(startIndex, endIndex);
+
+    displayData.forEach((row, index) => {
+      const rowElement = document.createElement('tr');
+      rowElement.innerHTML = `
+        <td><input type="checkbox" id="row-check" class="row-checkbox" data-index="${startIndex + index}"></td>
+        <th class="name-cell">${row.name}</th>
+        <td class="email-cell">${row.email}</td>
+        <td class="role-cell">${row.role}</td>
+        <td class="actions-cell">
+          <button class="btn btn-primary btn-sm edit-row" data-index="${startIndex + index}">Edit</button>
+          <button class="btn btn-danger btn-sm delete-row" data-index="${startIndex + index}">Delete</button>
+        </td>
+      `;
+
+      if (selectedRows.includes(startIndex + index)) {
+        rowElement.classList.add('selected-row');
+      }
+
+      tableBody.appendChild(rowElement);
+    });
+
+
+    updatePaginationInfo();
+  }
+
+  function updatePaginationInfo() {
+    const paginationInfo = document.getElementById('paginationInfo');
+    const totalRecords = data.length;
+    const totalPages = Math.ceil(totalRecords / usersPerPage);
+
+    paginationInfo.textContent = `Page ${currentPage} of ${totalPages}, Total Records: ${totalRecords}`;
+  }
+
+  function handlePagination(action) {
+    const totalRecords = data.length;
+    const totalPages = Math.ceil(totalRecords / usersPerPage);
+
+    switch (action) {
+      case 'first':
+        currentPage = 1;
+        break;
+      case 'previous':
+        currentPage = Math.max(currentPage - 1, 1);
+        break;
+      case 'next':
+        currentPage = Math.min(currentPage + 1, totalPages);
+        break;
+      case 'last':
+        currentPage = totalPages;
+        break;
+    }
+
+    renderTable();
+  }
+
+  // function handleSearch() {
+  //   const searchInput = document.getElementById('searchInput');
+  //   const searchTerm = searchInput.value.toLowerCase();
+  //
+  //   const filteredData = data.filter(row =>
+  //     row.name.toLowerCase().includes(searchTerm) ||
+  //     row.email.toLowerCase().includes(searchTerm)
+  //   );
+  //
+  //   currentPage = 1;
+  //   data.length = 0;
+  //   data.push(...filteredData);
+  //
+  //   renderTable();
+  // }
+  function handleSearch() {
+    const searchInput = document.getElementById('searchInput');
+    const searchTerm = searchInput.value.toLowerCase();
+
+    if (searchTerm.trim() === '') {
+        // If the search term is empty, render the entire dataset
+        currentPage = 1;
+        fetchData(); // Assuming fetchData fetches the entire dataset
+    } else {
+        // If there's a search term, filter the data
+        const filteredData = data.filter(row =>
+            row.name.toLowerCase().includes(searchTerm) ||
+            row.email.toLowerCase().includes(searchTerm)
+        );
+
+        currentPage = 1;
+        data.length = 0;
+        data.push(...filteredData);
+
+        renderTable();
+    }
+}
+
+
+  function handleCheckboxToggle(event) {
+    const index = parseInt(event.target.dataset.index);
+
+    if (event.target.checked) {
+      selectedRows.push(index);
+    } else {
+      selectedRows = selectedRows.filter(row => row !== index);
+    }
+
+    renderTable();
+  }
+
+  function toggleRowSelection(row) {
+    const index = parseInt(row.dataset.index);
+
+    if (selectedRows.includes(index)) {
+      selectedRows = selectedRows.filter(selectedIndex => selectedIndex !== index);
+    } else {
+      selectedRows.push(index);
+    }
+
+    renderTable();
+  }
+
+  function deleteSelected() {
+    // Remove selected rows from the data array in reverse order to avoid index issues
+      for (let i = selectedRows.length - 1; i >= 0; i--) {
+          const index = selectedRows[i] + (currentPage - 1) * usersPerPage;
+          allUsers.splice(index, 1);
+      }
+
+      // Reset selectedRows array
+      selectedRows = [];
+
+      // Reset the select-all checkbox
+      document.getElementById('selectAllCheckbox').checked = false;
+
+      // Fetch and display updated users
+      fetchUsers();
+  }
+
+  function handleSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+
+    if (selectAllCheckbox.checked) {
+      checkboxes.forEach(checkbox => (checkbox.checked = true));
+      selectedRows = Array.from({ length: usersPerPage }, (_, i) => (currentPage - 1) * usersPerPage + i);
+    } else {
+      checkboxes.forEach(checkbox => (checkbox.checked = false));
+      selectedRows = [];
+    }
+
+    renderTable();
+  }
+
+  function handleDeleteRow(event) {
+    const index = parseInt(event.target.dataset.index);
+    data.splice(index, 1);
+    renderTable();
+  }
+
+  function handleDeleteSelected() {
+        for (let i = selectedRows.length - 1; i >= 0; i--) {
+        const index = selectedRows[i] + (currentPage - 1) * usersPerPage;
+        data.splice(index, 1);
+      }
+
+      // Reset selectedRows array
+      selectedRows = [];
+
+      // Reset the select-all checkbox
+      document.getElementById('selectAllCheckbox').checked = false;
+
+      // Render the table
+      renderTable();
+  }
+
+  function handleEditRow(event) {
+    const index = parseInt(event.target.dataset.index);
+    const tableBody = document.getElementById('tableBody');
+    const rows = tableBody.getElementsByTagName('tr');
+
+    const rowsArray = Array.from(rows);
+
+    if (!rowsArray[index].classList.contains('edit-mode')) {
+      rowsArray.forEach((row) => {
+        if (row.classList.contains('edit-mode')) {
+          cancelEdit(row);
+        }
+      });
+
+      rowsArray[index].classList.add('edit-mode');
+      const nameCell = rowsArray[index].querySelector('.name-cell');
+      const emailCell = rowsArray[index].querySelector('.email-cell');
+      const roleCell = rowsArray[index].querySelector('.role-cell');
+
+      const nameValue = nameCell.textContent.trim();
+      const emailValue = emailCell.textContent.trim();
+      const roleValue = roleCell.textContent.trim();
+
+      nameCell.innerHTML = `<input type="text" class="form-control" value="${nameValue}" id="editName">`;
+      emailCell.innerHTML = `<input type="text" class="form-control" value="${emailValue}" id="editEmail">`;
+      roleCell.innerHTML = `<input type="text" class="form-control" value="${roleValue}" id="roleEmail">`;
+
+      const actionsCell = rowsArray[index].querySelector('.actions-cell');
+      actionsCell.innerHTML = `
+        <button class="btn btn-success btn-sm save-edit" data-index="${index}">Save</button>
+        <button class="btn btn-secondary btn-sm cancel-edit" data-index="${index}">Cancel</button>
+      `;
+
+      rowsArray[index].querySelector('.save-edit').addEventListener('click', handleSaveEdit);
+      rowsArray[index].querySelector('.cancel-edit').addEventListener('click', handleCancelEdit);
+    }
+  }
+
+  function handleSaveEdit(event) {
+    const index = parseInt(event.target.dataset.index);
+    const tableBody = document.getElementById('tableBody');
+    const rows = tableBody.getElementsByTagName('tr');
+    const nameInput = rows[index].querySelector('#editName');
+    const emailInput = rows[index].querySelector('#editEmail');
+    const roleInput = rows[index].querySelector('#roleEmail');
+
+    data[index].name = nameInput.value;
+    data[index].email = emailInput.value;
+    data[index].role = roleInput.value;
+    cancelEdit(rows[index]);
+    renderTable();
+  }
+
+  function handleCancelEdit(event) {
+    const index = parseInt(event.target.dataset.index);
+    const tableBody = document.getElementById('tableBody');
+    const rows = tableBody.getElementsByTagName('tr');
+
+    cancelEdit(rows[index]);
+    renderTable();
+  }
+
+  function cancelEdit(row) {
+    row.classList.remove('edit-mode');
+    const nameCell = row.querySelector('.name-cell');
+    const emailCell = row.querySelector('.email-cell');
+    const actionsCell = row.querySelector('.actions-cell');
+
+    nameCell.innerHTML = data[row.rowIndex - 1].name;
+    emailCell.innerHTML = data[row.rowIndex - 1].email;
+    actionsCell.innerHTML = `
+      <button class="btn btn-primary btn-sm edit-row" data-index="${row.rowIndex - 1}">Edit</button>
+      <button class="btn btn-danger btn-sm delete-row" data-index="${row.rowIndex - 1}">Delete</button>
+    `;
+  }
+
+  document.getElementById('deleteSelectedBtn').addEventListener('click', handleDeleteSelected);
+  document.getElementById('searchInput').addEventListener('input', handleSearch);
+  document.getElementById('selectAllCheckbox').addEventListener('change', handleSelectAll);
+  document.getElementById('tableBody').addEventListener('click', (event) => {
+  if (event.target.type === 'checkbox') {
+      const row = event.target.closest('tr');
+      const index = parseInt(row.dataset.index);
+
+      if (event.target.checked) {
+        row.classList.add('selected-row');
+        selectedRows.push(index);
+      } else {
+         row.classList.remove('selected-row');
+        selectedRows = selectedRows.filter(selectedIndex => selectedIndex !== index);
+      }
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    if (event.target.classList.contains('first-page')) {
+      handlePagination('first');
+    } else if (event.target.classList.contains('previous-page')) {
+      handlePagination('previous');
+    } else if (event.target.classList.contains('next-page')) {
+      handlePagination('next');
+    } else if (event.target.classList.contains('last-page')) {
+      handlePagination('last');
+    } else if (event.target.classList.contains('edit-row')) {
+      handleEditRow(event);
+    } else if (event.target.classList.contains('delete-row')) {
+      handleDeleteRow(event);
+    }
+  });
+
+  // Initial render
+  fetchData();
+</script>
+
+</body>
+</html>
